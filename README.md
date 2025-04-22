@@ -7,8 +7,6 @@ TicTacToe repository for Software Architecture and Design Patterns exercises.
 
 ## Repository Owner
 
-*Enter your information here:*
-
 - Name: Stephane Sandevski
 - Student-ID (Matrikelnummer): 22 59 802
 - S-Number: <s-number here>
