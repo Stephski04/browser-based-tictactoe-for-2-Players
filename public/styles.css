@@ -37,6 +37,7 @@ h1 {
     justify-content: center;
     font-size: 2em;
     cursor: pointer;
+    touch-action: manipulation;
 }
 
 button {
@@ -51,4 +52,8 @@ button {
 
 button:hover {
     background-color: #45a049;
+}
+
+body, html {
+    -webkit-tap-highlight-color: transparent; /* No grey flash on iOS tap */
 }

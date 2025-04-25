@@ -10,78 +10,96 @@ let gameState = {
     board: ["", "", "", "", "", "", "", "", ""],
     currentPlayer: "X",
     gameActive: true,
-    players: []
+    players: [],
+    playerSymbols: {} // { socket.id: 'X' or 'O' }
 };
 
-// Serve the front-end files
+// Serve front-end
 app.use(express.static('public'));
 
-// Handle new connections from players
 io.on('connection', (socket) => {
-    console.log('A player connected:', socket.id);
-    
-    // Add the new player to the game
+    console.log('Player connected:', socket.id);
+
+    // Only allow 2 players
     if (gameState.players.length < 2) {
         gameState.players.push(socket.id);
-        socket.emit('player', gameState.players.length === 1 ? 'X' : 'O');
+        const assignedSymbol = gameState.players.length === 1 ? 'X' : 'O';
+        gameState.playerSymbols[socket.id] = assignedSymbol;
+        socket.emit('player', assignedSymbol);
+        console.log(`Assigned ${assignedSymbol} to ${socket.id}`);
+
+        // Send initial state
+        socket.emit('gameUpdate', gameState);
+    } else {
+        socket.emit('full');
+        return;
     }
 
-    // Handle player move
-    socket.on('makeMove', (data) => {
-        const { index, player } = data;
-        
-        if (gameState.board[index] === "" && gameState.gameActive) {
-            gameState.board[index] = player;
-            gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
-            
-            // Emit updated game state to both players
-            io.emit('gameUpdate', gameState);
+    // Handle move
+    socket.on('makeMove', ({ index }) => {
+        const player = gameState.playerSymbols[socket.id];
 
-            // Check if the game has a winner or a draw
+        // Validate move
+        if (
+            gameState.gameActive &&
+            player === gameState.currentPlayer &&
+            gameState.board[index] === ""
+        ) {
+            gameState.board[index] = player;
+            gameState.currentPlayer = player === 'X' ? 'O' : 'X';
             checkGameStatus();
+            io.emit('gameUpdate', gameState);
         }
     });
 
-    // Restart the game when requested
+    // Restart game
     socket.on('restartGame', () => {
+        if (gameState.players.includes(socket.id)) {
+            gameState.board = ["", "", "", "", "", "", "", "", ""];
+            gameState.currentPlayer = "X";
+            gameState.gameActive = true;
+            io.emit('gameUpdate', gameState);
+        }
+    });
+
+    // Handle disconnect
+    socket.on('disconnect', () => {
+        console.log('Player disconnected:', socket.id);
+        gameState.players = gameState.players.filter(p => p !== socket.id);
+        delete gameState.playerSymbols[socket.id];
+
+        // Reset game
         gameState.board = ["", "", "", "", "", "", "", "", ""];
         gameState.currentPlayer = "X";
         gameState.gameActive = true;
-        io.emit('gameUpdate', gameState);
-    });
 
-    // Handle disconnection
-    socket.on('disconnect', () => {
-        console.log('A player disconnected:', socket.id);
-        gameState.players = gameState.players.filter(player => player !== socket.id);
         io.emit('gameUpdate', gameState);
     });
 });
 
-// Check for a winner or draw
 function checkGameStatus() {
-    const winPatterns = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-        [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-        [0, 4, 8], [2, 4, 6] // diagonals
+    const wins = [
+        [0,1,2], [3,4,5], [6,7,8],
+        [0,3,6], [1,4,7], [2,5,8],
+        [0,4,8], [2,4,6]
     ];
-
-    for (let pattern of winPatterns) {
-        const [a, b, c] = pattern;
-        if (gameState.board[a] && gameState.board[a] === gameState.board[b] && gameState.board[a] === gameState.board[c]) {
+    for (const [a, b, c] of wins) {
+        if (
+            gameState.board[a] &&
+            gameState.board[a] === gameState.board[b] &&
+            gameState.board[a] === gameState.board[c]
+        ) {
             gameState.gameActive = false;
-            io.emit('gameUpdate', gameState);
             return;
         }
     }
 
     if (!gameState.board.includes("")) {
-        gameState.gameActive = false;
-        io.emit('gameUpdate', gameState); // Draw
+        gameState.gameActive = false; // Draw
     }
 }
 
-// Start the server on port 3000
+// Start server
 server.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+    console.log('Server running at http://localhost:3000');
 });

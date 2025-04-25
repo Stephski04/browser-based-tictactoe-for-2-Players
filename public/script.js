@@ -1,34 +1,69 @@
 const socket = io();
 
-// Variables to track game state
-let currentPlayer = '';
-let gameActive = true;
+let playerSymbol = '';
+let currentTurn = '';
+let gameActive = false;
 
-// Listen for the game state update from the server
-socket.on('gameUpdate', (gameState) => {
-    updateGameBoard(gameState.board);
-    gameActive = gameState.gameActive;
-    currentPlayer = gameState.currentPlayer;
+// Receive assigned symbol
+socket.on('player', (symbol) => {
+    playerSymbol = symbol;
+    document.getElementById('turn-indicator').textContent = `You are player ${symbol}`;
 });
 
-// Update the game board on the client side
-function updateGameBoard(board) {
-    const cells = document.querySelectorAll('.cell');
-    cells.forEach((cell, index) => {
-        cell.textContent = board[index];  // Update the content of each cell
+// Receive game state updates
+socket.on('gameUpdate', (gameState) => {
+    updateBoard(gameState.board);
+    currentTurn = gameState.currentPlayer;
+    gameActive = gameState.gameActive;
+
+    const status = !gameActive
+        ? getGameResult(gameState.board)
+        : currentTurn === playerSymbol
+            ? "Your turn"
+            : "Opponent's turn";
+
+    document.getElementById('turn-indicator').textContent = status;
+});
+
+// Game full
+socket.on('full', () => {
+    alert("Game is full. Try again later.");
+});
+
+// Board UI update
+function updateBoard(board) {
+    document.querySelectorAll('.cell').forEach((cell, i) => {
+        cell.textContent = board[i];
     });
 }
 
-// Handle cell click (send the move to the server)
+// Click logic
 document.querySelectorAll('.cell').forEach((cell, index) => {
     cell.addEventListener('click', () => {
-        if (gameActive && cell.textContent === "") {
-            socket.emit('makeMove', { index, player: currentPlayer });
+        if (gameActive && currentTurn === playerSymbol && cell.textContent === "") {
+            socket.emit('makeMove', { index });
         }
     });
 });
 
-// Restart the game when clicked
+// Restart
 document.getElementById('restart-button').addEventListener('click', () => {
     socket.emit('restartGame');
 });
+
+// Win/draw result
+function getGameResult(board) {
+    const wins = [
+        [0,1,2], [3,4,5], [6,7,8],
+        [0,3,6], [1,4,7], [2,5,8],
+        [0,4,8], [2,4,6]
+    ];
+
+    for (let [a, b, c] of wins) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+            return `Player ${board[a]} wins!`;
+        }
+    }
+
+    return "It's a draw!";
+}
